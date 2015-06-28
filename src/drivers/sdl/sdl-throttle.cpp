@@ -4,9 +4,9 @@
 #include "sdl.h"
 #include "throttle.h"
 
-static const double Slowest = 0.015625; // 1/64x speed (around 1 fps on NTSC)
-static const double Fastest = 32;       // 32x speed   (around 1920 fps on NTSC)
-static const double Normal  = 1.0;      // 1x speed    (around 60 fps on NTSC)
+static const double Slowest = 0.015625; // 1/64x speed (around     1 fps on NTSC)
+static const double Fastest = 256;      // 256x speed  (around 15360 fps on NTSC)
+static const double Normal  = 1.0;      // 1x speed    (around    60 fps on NTSC)
 
 static uint64 Lasttime, Nexttime;
 static long double desired_frametime;
@@ -33,7 +33,7 @@ RefreshThrottleFPS()
 	uint64 fps = FCEUI_GetDesiredFPS(); // Do >> 24 to get in Hz
 	desired_frametime = 16777216.0l / (fps * g_fpsScale);
 
-	Lasttime=0;   
+	Lasttime=0;
 	Nexttime=0;
 	InFrame=0;
 }
@@ -50,22 +50,22 @@ SpeedThrottle()
 	}
 	uint64 time_left;
 	uint64 cur_time;
-    
+
 	if(!Lasttime)
 		Lasttime = SDL_GetTicks();
-    
+
 	if(!InFrame)
 	{
 		InFrame = 1;
 		Nexttime = Lasttime + desired_frametime * 1000;
 	}
-    
+
 	cur_time  = SDL_GetTicks();
 	if(cur_time >= Nexttime)
 		time_left = 0;
 	else
 		time_left = Nexttime - cur_time;
-    
+
 	if(time_left > 50)
 	{
 		time_left = 50;
@@ -74,11 +74,11 @@ SpeedThrottle()
 	}
 	else
 		InFrame = 0;
-    
+
 	/*fprintf(stderr, "attempting to sleep %Ld ms, frame complete=%s\n",
 		time_left, InFrame?"no":"yes");*/
 	SDL_Delay(time_left);
-    
+
 	if(!InFrame)
 	{
 		Lasttime = SDL_GetTicks();
@@ -93,11 +93,11 @@ SpeedThrottle()
 void IncreaseEmulationSpeed(void)
 {
 	g_fpsScale *= LOGMUL;
-    
+
 	if(g_fpsScale > Fastest) g_fpsScale = Fastest;
 
 	RefreshThrottleFPS();
-     
+
 	FCEU_DispMessage("Emulation speed %.1f%%",0, g_fpsScale*100.0);
 }
 
@@ -122,7 +122,7 @@ void
 FCEUD_SetEmulationSpeed(int cmd)
 {
 	MaxSpeed = false;
-    
+
 	switch(cmd) {
 	case EMUSPEED_SLOWEST:
 		g_fpsScale = Slowest;
