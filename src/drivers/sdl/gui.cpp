@@ -2417,7 +2417,7 @@ gint handleMouseClick(GtkWidget* widget, GdkEvent *event, gpointer callback_data
 const int NES_WIDTH=256;
 const int NES_HEIGHT=240;
 
-static int windowWidth, windowHeight;
+static int windowWidth=0, windowHeight=0;
 static double xscale, yscale;
 static int resize_pending = 0;
 gboolean actually_resize(gpointer data)
@@ -2442,8 +2442,14 @@ gboolean handle_resize(GtkWindow* win, GdkEvent* event, gpointer data)
 	// of the GTK window as possible
 
 	// get new window width/height
-	windowWidth  = event->configure.width;
-	windowHeight = event->configure.height;
+	int width  = event->configure.width;
+	int height = event->configure.height;
+	if(width == windowWidth && height == windowHeight) {
+		return FALSE; //do not eat this event
+	}
+
+	windowWidth  = width;
+	windowHeight = height;
 
 	// get width/height multipliers
 	xscale = windowWidth  / (double)NES_WIDTH;
@@ -2477,7 +2483,7 @@ gboolean handle_resize(GtkWindow* win, GdkEvent* event, gpointer data)
 		g_timeout_add(100, actually_resize, NULL);
 	}
 
-	GdkColor col; col.red = 0; col.green = 0; col.blue = 0;
+	//GdkColor col; col.red = 0; col.green = 0; col.blue = 0;
 	//gtk_widget_modify_bg(GTK_WIDGET(win), GTK_STATE_NORMAL, &col);
 
 	//col.red = 0; col.green = 65535;
@@ -2485,7 +2491,7 @@ gboolean handle_resize(GtkWindow* win, GdkEvent* event, gpointer data)
 
 	//printf("DEBUG: new xscale: %f yscale: %f\n", xscale, yscale);
 
-	return FALSE;
+	return FALSE; //do not eat this event
 }
 
 int InitGTKSubsystem(int argc, char** argv)
