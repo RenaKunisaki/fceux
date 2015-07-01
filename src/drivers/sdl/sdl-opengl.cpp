@@ -237,7 +237,7 @@ InitOpenGL(int l,
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP);
 	glEnable(GL_TEXTURE_2D);
 	glDisable(GL_DEPTH_TEST);
-	glClearColor(0.0f, 1.0f, 0.0f, 0.0f);	// Background color to black.
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);	// Background color to black.
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 

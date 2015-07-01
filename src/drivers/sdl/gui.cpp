@@ -2477,14 +2477,10 @@ gboolean handle_resize(GtkWindow* win, GdkEvent* event, gpointer data)
 		g_timeout_add(100, actually_resize, NULL);
 	}
 
-	GdkColor col;
-	col.red = 65535;
-	col.green = 0;
-	col.blue = 0;
+	GdkColor col; col.red = 0; col.green = 0; col.blue = 0;
 	//gtk_widget_modify_bg(GTK_WIDGET(win), GTK_STATE_NORMAL, &col);
 
-	col.red = 0;
-	col.green = 65535;
+	//col.red = 0; col.green = 65535;
 	//gtk_widget_modify_bg(GTK_WIDGET(evbox), GTK_STATE_NORMAL, &col);
 
 	//printf("DEBUG: new xscale: %f yscale: %f\n", xscale, yscale);
@@ -2539,11 +2535,12 @@ int InitGTKSubsystem(int argc, char** argv)
 
 	gtk_widget_set_size_request(evbox, NES_WIDTH, NES_HEIGHT);
 	gtk_widget_realize(evbox);
-	//gtk_widget_show(evbox);
-	gtk_widget_show_all(vbox);
 
 	GdkColor bg = {0, 0, 0, 0};
+	gtk_widget_modify_bg(GTK_WIDGET(MainWindow), GTK_STATE_NORMAL, &bg);
 	gtk_widget_modify_bg(evbox, GTK_STATE_NORMAL, &bg);
+	//gtk_widget_show(evbox);
+	gtk_widget_show_all(vbox);
 
 	// set up keypress "snooper" to convert GDK keypress events into SDL keypresses
 	gtk_key_snooper_install(convertKeypress, NULL);
