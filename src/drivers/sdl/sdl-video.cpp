@@ -55,6 +55,7 @@ extern Config *g_config;
 // STATIC GLOBALS
 extern SDL_Surface *s_screen;
 
+static int wasInit = 0;
 static SDL_Surface *s_BlitBuf; // Buffer when using hardware-accelerated blits.
 static SDL_Surface *s_IconSurface = NULL;
 
@@ -91,7 +92,7 @@ bool FCEUD_ShouldDrawInputAids()
 {
 	return s_fullscreen!=0;
 }
- 
+
 int
 KillVideo()
 {
@@ -104,7 +105,7 @@ KillVideo()
 	// return failure if the video system was not initialized
 	if(s_inited == 0)
 		return -1;
-    
+
 	// if the rest of the system has been initialized, shut it down
 #ifdef OPENGL
 	// check for OpenGL and shut it down
@@ -168,7 +169,7 @@ InitVideo(FCEUGI *gi)
 	int error, flags = 0;
 	int doublebuf, xstretch, ystretch, xres, yres, show_fps;
 
-	FCEUI_printf("Initializing video...");
+	if(!wasInit) FCEUI_printf("Initializing video...");
 
 	// load the relevant configuration variables
 	g_config->getOption("SDL.Fullscreen", &s_fullscreen);
@@ -216,7 +217,7 @@ InitVideo(FCEUGI *gi)
 	if(vinf->hw_available) {
 		flags |= SDL_HWSURFACE;
 	}
-    
+
 	// get the monitor's current resolution if we do not already have it
 	if(s_nativeWidth < 0) {
 		s_nativeWidth = vinf->current_w;
@@ -227,7 +228,7 @@ InitVideo(FCEUGI *gi)
 
 	// check to see if we are showing FPS
 	FCEUI_SetShowFPS(show_fps);
-    
+
 	// check if we are rendering fullscreen
 	if(s_fullscreen) {
 		int no_cursor;
@@ -238,7 +239,7 @@ InitVideo(FCEUGI *gi)
 	else {
 		SDL_ShowCursor(1);
 	}
-    
+
 	if(noframe) {
 		flags |= SDL_NOFRAME;
 	}
@@ -249,7 +250,8 @@ InitVideo(FCEUGI *gi)
 	// enable double buffering if requested and we have hardware support
 #ifdef OPENGL
 	if(s_useOpenGL) {
-		FCEU_printf("Initializing with OpenGL (Disable with '--opengl 0').\n");
+		if(!wasInit) FCEU_printf(
+			"Initializing with OpenGL (Disable with '--opengl 0').\n");
 		if(doublebuf) {
 			 SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 		}
@@ -270,21 +272,21 @@ InitVideo(FCEUGI *gi)
 			double native_ratio = ((double)NWIDTH) / s_tlines;
 			double screen_ratio = ((double)xres) / yres;
 			int keep_ratio;
-            
+
 			g_config->getOption("SDL.KeepRatio", &keep_ratio);
-            
+
 			// Try to choose resolution
 			if (screen_ratio < native_ratio)
 			{
 				// The screen is narrower than the original. Maximizing width will not clip
 				auto_xscale = auto_yscale = GetXScale(xres);
-				if (keep_ratio) 
+				if (keep_ratio)
 					auto_yscale = GetYScale(yres);
 			}
 			else
 			{
 				auto_yscale = auto_xscale = GetYScale(yres);
-				if (keep_ratio) 
+				if (keep_ratio)
 					auto_xscale = GetXScale(xres);
 			}
 			s_exs = auto_xscale;
@@ -304,7 +306,7 @@ InitVideo(FCEUGI *gi)
 		} else {
 			desbpp = 0;
 		}
-        
+
 		// -Video Modes Tag-
 		if(s_sponge) {
 			if(s_sponge == 4 || s_sponge == 5) {
@@ -347,14 +349,14 @@ InitVideo(FCEUGI *gi)
 			FCEUD_PrintError(SDL_GetError());
 			return -1;
 		}
-	} else {
-		int desbpp;
+	} else { //not fullscreen
+		int desbpp, autoscale;
 		g_config->getOption("SDL.BitsPerPixel", &desbpp);
-
 		g_config->getOption("SDL.XScale", &s_exs);
 		g_config->getOption("SDL.YScale", &s_eys);
+		//printf("DEBUG: scale = %1.2f, %1.2f\n", s_exs, s_eys);
 		g_config->getOption("SDL.SpecialFX", &s_eefx);
-        
+
 		// -Video Modes Tag-
 		if(s_sponge) {
 			if(s_sponge >= 4) {
@@ -390,13 +392,13 @@ InitVideo(FCEUGI *gi)
 #if defined(_GTK) && defined(SDL_VIDEO_DRIVER_X11)
 		if(noGui == 0)
 		{
-			while (gtk_events_pending())
-				gtk_main_iteration_do(FALSE);
-        
+			//while (gtk_events_pending())
+			//	gtk_main_iteration_do(FALSE);
+
 			char SDL_windowhack[128];
 			sprintf(SDL_windowhack, "SDL_WINDOWID=%u", (unsigned int)GDK_WINDOW_XID(gtk_widget_get_window(evbox)));
 			SDL_putenv(SDL_windowhack);
-        
+
 			// init SDL video
 			if (SDL_WasInit(SDL_INIT_VIDEO))
 				SDL_QuitSubSystem(SDL_INIT_VIDEO);
@@ -407,7 +409,7 @@ InitVideo(FCEUGI *gi)
 			}
 		}
 #endif
-        
+
 		s_screen = SDL_SetVideoMode((int)(NWIDTH * s_exs),
 								(int)(s_tlines * s_eys),
 								desbpp, flags);
@@ -420,8 +422,8 @@ InitVideo(FCEUGI *gi)
 		if(noGui == 0)
 		{
 			GtkRequisition req;
-			gtk_widget_size_request(GTK_WIDGET(MainWindow), &req);
-			gtk_window_resize(GTK_WINDOW(MainWindow), req.width, req.height);
+			//gtk_widget_size_request(GTK_WIDGET(MainWindow), &req);
+			//gtk_window_resize(GTK_WINDOW(MainWindow), req.width, req.height);
 		 }
 #endif
 		 }
@@ -442,9 +444,9 @@ InitVideo(FCEUGI *gi)
                                      s_screen->format->Bmask, 0);
 #endif
 
-	FCEU_printf(" Video Mode: %d x %d x %d bpp %s\n",
-				s_screen->w, s_screen->h, s_screen->format->BitsPerPixel,
-				s_fullscreen ? "full screen" : "");
+	//FCEU_printf(" Video Mode: %d x %d x %d bpp %s\n",
+	//			s_screen->w, s_screen->h, s_screen->format->BitsPerPixel,
+	//			s_fullscreen ? "full screen" : "");
 
 	if(s_curbpp != 8 && s_curbpp != 16 && s_curbpp != 24 && s_curbpp != 32) {
 		FCEU_printf("  Sorry, %dbpp modes are not supported by FCE Ultra.  Supported bit depths are 8bpp, 16bpp, and 32bpp.\n", s_curbpp);
@@ -484,7 +486,7 @@ InitVideo(FCEUGI *gi)
 						s_screen->format->Bmask,
 						s_eefx, s_sponge, 0);
 #ifdef OPENGL
-		if(s_useOpenGL) 
+		if(s_useOpenGL)
 		{
 			int openGLip;
 			g_config->getOption("SDL.OpenGLip", &openGLip);
@@ -492,7 +494,7 @@ InitVideo(FCEUGI *gi)
 			if(!InitOpenGL(NOFFSET, 256 - (s_clipSides ? 8 : 0),
 						s_srendline, s_erendline + 1,
 						s_exs, s_eys, s_eefx,
-						openGLip, xstretch, ystretch, s_screen)) 
+						openGLip, xstretch, ystretch, s_screen))
 			{
 				FCEUD_PrintError("Error initializing OpenGL.");
 				KillVideo();
@@ -501,6 +503,7 @@ InitVideo(FCEUGI *gi)
 		}
 #endif
 	}
+	wasInit = 1;
 	return 0;
 }
 #endif
@@ -575,7 +578,7 @@ FCEUD_GetPalette(uint8 index,
 	*b = s_psdl[index].b;
 }
 
-/** 
+/**
  * Pushes the palette structure into the underlying video subsystem.
  */
 static void RedoPalette()
@@ -583,7 +586,7 @@ static void RedoPalette()
 #ifdef OPENGL
 	if(s_useOpenGL)
 		SetOpenGLPalette((uint8*)s_psdl);
-	else 
+	else
 #endif
 	{
 		if(s_curbpp > 8) {
@@ -764,14 +767,14 @@ BlitScreen(uint8 *XBuf)
    static struct timeval last_time;
    static int first_time=1;
    extern long soundrate;
-   
+
    struct timeval cur_time;
    gettimeofday(&cur_time, NULL);
-   
+
    double timediff =
        (cur_time.tv_sec *1e6 + cur_time.tv_usec
      - (last_time.tv_sec *1e6 + last_time.tv_usec)) / 1e6;
-   
+
    int nframes = timediff * 60 - 1;
    if(first_time)
      first_time = 0;
