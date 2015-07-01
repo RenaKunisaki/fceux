@@ -2417,34 +2417,37 @@ gint handleMouseClick(GtkWidget* widget, GdkEvent *event, gpointer callback_data
 const int NES_WIDTH=256;
 const int NES_HEIGHT=240;
 
+static int windowWidth, windowHeight;
+static double xscale, yscale;
 static int resize_pending = 0;
 gboolean actually_resize(gpointer data)
 {
+	gtk_widget_set_size_request(GTK_WIDGET(evbox),
+		(int)(NES_WIDTH*xscale), (int)(NES_HEIGHT*yscale));
+	flushGtkEvents();
+
 	if(GameInfo != 0)
 	{
 		KillVideo();
 		InitVideo(GameInfo);
 	}
-	//gtk_widget_set_size_request(evbox, (int)(NES_WIDTH*xscale), (int)(NES_HEIGHT*yscale));
+
 	resize_pending = 0;
 	return FALSE; //stop this timer
 }
 
-void handle_resize(GtkWindow* win, GdkEvent* event, gpointer data)
+gboolean handle_resize(GtkWindow* win, GdkEvent* event, gpointer data)
 {
-	// TODO this is a stub atm
 	// this should handle resizing so the emulation takes up as much
 	// of the GTK window as possible
 
 	// get new window width/height
-	int width, height;
-	width = event->configure.width;
-	height = event->configure.height;
-	//printf("DEBUG: new window size: %dx%d\n", width, height);
+	windowWidth  = event->configure.width;
+	windowHeight = event->configure.height;
 
 	// get width/height multipliers
-	double xscale = width / (double)NES_WIDTH;
-	double yscale = height / (double)NES_HEIGHT;
+	xscale = windowWidth  / (double)NES_WIDTH;
+	yscale = windowHeight / (double)NES_HEIGHT;
 
 	// do this to keep aspect ratio
 	int keep_ratio;
@@ -2454,7 +2457,16 @@ void handle_resize(GtkWindow* win, GdkEvent* event, gpointer data)
 		if(yscale > xscale) yscale = xscale;
 	}
 
-	//TODO if openGL make these integers
+	int s_useOpenGL;
+	g_config->getOption("SDL.OpenGL", &s_useOpenGL);
+	if(!s_useOpenGL) {
+		xscale = (int)xscale;
+		yscale = (int)yscale;
+	}
+
+	//printf("DEBUG: new window size: %dx%d; scale %1.2f, %1.2f\n",
+	//	windowWidth, windowHeight, xscale, yscale);
+
 	g_config->setOption("SDL.XScale", xscale);
 	g_config->setOption("SDL.YScale", yscale);
     //gtk_widget_realize(evbox);
@@ -2465,15 +2477,19 @@ void handle_resize(GtkWindow* win, GdkEvent* event, gpointer data)
 		g_timeout_add(100, actually_resize, NULL);
 	}
 
-	GdkColor black;
-	black.red = 0;
-	black.green = 0;
-	black.blue = 0;
-//	gtk_widget_modify_bg(GTK_WIDGET(win), GTK_STATE_NORMAL, &black);
+	GdkColor col;
+	col.red = 65535;
+	col.green = 0;
+	col.blue = 0;
+	//gtk_widget_modify_bg(GTK_WIDGET(win), GTK_STATE_NORMAL, &col);
+
+	col.red = 0;
+	col.green = 65535;
+	//gtk_widget_modify_bg(GTK_WIDGET(evbox), GTK_STATE_NORMAL, &col);
 
 	//printf("DEBUG: new xscale: %f yscale: %f\n", xscale, yscale);
 
-	return;
+	return FALSE;
 }
 
 int InitGTKSubsystem(int argc, char** argv)
@@ -2481,11 +2497,18 @@ int InitGTKSubsystem(int argc, char** argv)
 	GtkWidget* Menubar;
 	GtkWidget* vbox;
 
+	printf("GTK ver %d.%d\n", GTK_MAJOR_VERSION, GTK_MINOR_VERSION);
+
 	MainWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 //	gtk_window_set_policy (GTK_WINDOW (MainWindow), FALSE, FALSE, TRUE);
 	gtk_window_set_resizable(GTK_WINDOW(MainWindow), TRUE);
 	gtk_window_set_title(GTK_WINDOW(MainWindow), FCEU_NAME_AND_VERSION);
-	gtk_window_set_default_size(GTK_WINDOW(MainWindow), NES_WIDTH, NES_HEIGHT);
+
+	double xscale, yscale;
+	g_config->getOption("SDL.XScale", &xscale);
+	g_config->getOption("SDL.YScale", &yscale);
+	gtk_window_set_default_size(GTK_WINDOW(MainWindow),
+		NES_WIDTH * xscale, NES_HEIGHT * yscale);
 
 	GdkPixbuf* icon = gdk_pixbuf_new_from_xpm_data(icon_xpm);
 	gtk_window_set_default_icon(icon);
@@ -2514,13 +2537,9 @@ int InitGTKSubsystem(int argc, char** argv)
 	evbox = gtk_event_box_new();
 	gtk_box_pack_end (GTK_BOX(vbox), evbox, TRUE, TRUE, 0);
 
-	double xscale, yscale;
-	g_config->getOption("SDL.XScale", &xscale);
-	g_config->getOption("SDL.YScale", &yscale);
-
 	gtk_widget_set_size_request(evbox, NES_WIDTH, NES_HEIGHT);
 	gtk_widget_realize(evbox);
-	gtk_widget_show(evbox);
+	//gtk_widget_show(evbox);
 	gtk_widget_show_all(vbox);
 
 	GdkColor bg = {0, 0, 0, 0};

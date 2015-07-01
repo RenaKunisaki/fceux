@@ -392,8 +392,8 @@ InitVideo(FCEUGI *gi)
 #if defined(_GTK) && defined(SDL_VIDEO_DRIVER_X11)
 		if(noGui == 0)
 		{
-			//while (gtk_events_pending())
-			//	gtk_main_iteration_do(FALSE);
+			while (gtk_events_pending())
+				gtk_main_iteration_do(FALSE);
 
 			char SDL_windowhack[128];
 			sprintf(SDL_windowhack, "SDL_WINDOWID=%u", (unsigned int)GDK_WINDOW_XID(gtk_widget_get_window(evbox)));
@@ -421,9 +421,10 @@ InitVideo(FCEUGI *gi)
 #ifdef _GTK
 		if(noGui == 0)
 		{
+			//resize the window to prevent leaving empty space
 			GtkRequisition req;
-			//gtk_widget_size_request(GTK_WIDGET(MainWindow), &req);
-			//gtk_window_resize(GTK_WINDOW(MainWindow), req.width, req.height);
+			gtk_widget_size_request(GTK_WIDGET(MainWindow), &req);
+			gtk_window_resize(GTK_WINDOW(MainWindow), req.width, req.height);
 		 }
 #endif
 		 }

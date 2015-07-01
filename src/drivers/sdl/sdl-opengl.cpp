@@ -52,7 +52,7 @@ BlitOpenGL(uint8 *buf)
 
 	if(HiBuffer) {
 		Blit8ToHigh(buf, (uint8*)HiBuffer, 256, 240, 256*4, 1, 1);
-    
+
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 256, 0,
 					GL_RGBA, GL_UNSIGNED_BYTE, HiBuffer);
 	}
@@ -88,15 +88,15 @@ BlitOpenGL(uint8 *buf)
 		glTexCoord2f(1.0f*left/256,
 					1.0f*bottom/256); // Bottom left of our picture.
 		glVertex2f(-1.0f, -1.0f);      // Bottom left of target.
- 
+
 		glTexCoord2f(1.0f*right/256,
 					1.0f*bottom/256); // Bottom right of our picture.
 		glVertex2f( 1.0f, -1.0f);      // Bottom right of target.
- 
+
 		glTexCoord2f(1.0f*right/256,
 					1.0f*top/256);    // Top right of our picture.
 		glVertex2f( 1.0f,  1.0f);      // Top right of target.
- 
+
 		glTexCoord2f(1.0f*left/256,
 					1.0f*top/256);     // Top left of our picture.
 		glVertex2f(-1.0f,  1.0f);      // Top left of target.
@@ -166,7 +166,7 @@ InitOpenGL(int l,
 	bottom=b;
 
 	HiBuffer=0;
- 
+
 	extensions=(const char*)glGetString(GL_EXTENSIONS);
 
 	if((efx&2) || !extensions || !p_glColorTableEXT || !strstr(extensions,"GL_EXT_paletted_texture"))
@@ -181,7 +181,7 @@ InitOpenGL(int l,
 	InitBlitToHigh(4,0xFF,0xFF00,0xFF0000,efx&2,0,0);
   #endif
 	}
- 
+
 	if(screen->flags & SDL_FULLSCREEN)
 	{
 		xscale=(double)screen->w / (double)(r-l);
@@ -230,14 +230,14 @@ InitOpenGL(int l,
 		FCEU_dfree(buf);
 	}
 	glBindTexture(GL_TEXTURE_2D, textures[0]);
-     
+
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,ipolate?GL_LINEAR:GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,ipolate?GL_LINEAR:GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP);
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP);
 	glEnable(GL_TEXTURE_2D);
 	glDisable(GL_DEPTH_TEST);
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);	// Background color to black.
+	glClearColor(0.0f, 1.0f, 0.0f, 0.0f);	// Background color to black.
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
