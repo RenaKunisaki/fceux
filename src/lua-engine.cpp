@@ -5446,6 +5446,47 @@ static int emu_exec_time(lua_State *L)
 static int emu_exec_time(lua_State *L) { return 0; }
 #endif
 
+
+static int config_index(lua_State *L) {
+	const char *name = luaL_checkstring(L, 2);
+	int val_int;
+	double val_double;
+	const char *val_str;
+
+	if(g_config->getOption(name, &val_int) == 0)
+		lua_pushinteger(L, val_int);
+	else if(g_config->getOption(name, &val_double) == 0)
+		lua_pushnumber(L, val_double);
+	else if(g_config->getOption(name, &val_str) == 0)
+		lua_pushstring(L, val_str);
+	else lua_pushnil(L);
+
+	return 1;
+}
+
+static int config_newindex(lua_State *L) {
+	const char *name = luaL_checkstring(L, 2);
+	int res;
+
+	if(lua_isinteger(L, 3)) {
+		res = g_config->setOption(name, (int)lua_tointeger(L, 3));
+	}
+	else if(lua_isnumber(L, 3)) {
+		res = g_config->setOption(name, (double)lua_tonumber(L, 3));
+	}
+	else if(lua_isstring(L, 3)) {
+		res = g_config->setOption(name, lua_tostring(L, 3));
+	}
+	//XXX else if nil, delete option?
+	else return luaL_error(L,
+		"Invalid type for config value "
+		"(expected integer, number, or string, got %s)", luaL_typename(L, 3));
+
+	if(res == 0) return 0;
+	else return luaL_error(L, "Option \"%s\" does not exist", name);
+}
+
+
 static const struct luaL_Reg emulib [] = {
 
 	{"poweron", emu_poweron},
@@ -5667,6 +5708,12 @@ static const struct luaL_Reg taseditorlib[] = {
 	{NULL,NULL}
 };
 
+static const struct luaL_Reg config_metatable[] = {
+	{"__index", config_index},
+	{"__newindex", config_newindex},
+	{NULL,NULL}
+};
+
 void CallExitFunction() {
 	if (!L)
 		return;
@@ -5815,6 +5862,11 @@ int FCEU_LoadLuaCode(const char *filename, const char *arg) {
 		luaL_register(L, "taseditor", taseditorlib);
 		luaL_register(L, "bit", bit_funcs); // LuaBitOp library
 		lua_settop(L, 0);		// clean the stack, because each call to luaL_register leaves a table on top
+
+		lua_newtable(L); //-1: config
+		luaL_newlib(L, config_metatable); //-1: meta, -2: config
+		lua_setmetatable(L, -2); //-1: config
+		lua_setglobal(L, "config"); //stack empty
 
 		// register a few utility functions outside of libraries (in the global namespace)
 		//lua_register(L, "print", print);
