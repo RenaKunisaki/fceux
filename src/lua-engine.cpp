@@ -67,9 +67,13 @@ extern Config *g_config;
 		#include <GL/glu.h>
 		#include <GL/glext.h>
 	#endif
-	static int s_useOpenGL = 0;
+
 	GLuint g_luaDisplayList = 0;
+	static int s_useOpenGL  = 0;
 #endif
+static int frameskip        = 0;
+static int frameskip_count  = 0;
+static int frame_is_skipped = 0;
 
 bool CheckLua()
 {
@@ -3442,6 +3446,7 @@ static uint32 gui_optcolour(lua_State *L, int offset, uint32 defaultColour) {
 
 // gui.pixel(x,y,colour)
 static int gui_pixel(lua_State *L) {
+	if(frame_is_skipped) return 0;
 
 	int x = luaL_checkinteger(L, 1);
 	int y = luaL_checkinteger(L,2);
@@ -3541,6 +3546,7 @@ static int emu_getscreenpixel(lua_State *L) {
 
 // gui.line(x1,y1,x2,y2,color,skipFirst)
 static int gui_line(lua_State *L) {
+	if(frame_is_skipped) return 0;
 
 	int x1,y1,x2,y2;
 	uint32 color;
@@ -3560,6 +3566,7 @@ static int gui_line(lua_State *L) {
 
 // gui.box(x1, y1, x2, y2, fillcolor, outlinecolor)
 static int gui_box(lua_State *L) {
+	if(frame_is_skipped) return 0;
 
 	int x1,y1,x2,y2;
 	uint32 fillcolor;
@@ -4170,6 +4177,7 @@ void LuaDrawTextTransWH(const char *str, size_t l, int &x, int y, uint32 color, 
 //  Displays the given text on the screen, using the same font and techniques as the
 //  main HUD.
 static int gui_text(lua_State *L) {
+	if(frame_is_skipped) return 0;
 
 	extern int font_height;
 	const char *msg;
@@ -5750,9 +5758,21 @@ void FCEU_LuaFrameBoundary()
 	frameBoundary = TRUE;
 	frameAdvanceWaiting = FALSE;
 
+	//XXX we should be able to ask the core if it's skipping this frame,
+	//instead of keeping our own counter and just hoping it stays in sync.
+	frameskip_count++;
+	if(frameskip_count >= frameskip) {
+		frame_is_skipped = 0;
+		frameskip_count  = 0;
+	}
+	else frame_is_skipped = 1;
+
 #ifdef OPENGL
-		if(s_useOpenGL && g_luaDisplayList)
-			glNewList(g_luaDisplayList, GL_COMPILE);
+		if(s_useOpenGL && g_luaDisplayList) {
+			if(!frame_is_skipped) {
+				glNewList(g_luaDisplayList, GL_COMPILE);
+			}
+		}
 #endif
 
 	numTries = 1000;
@@ -5783,7 +5803,11 @@ void FCEU_LuaFrameBoundary()
 	}
 
 #ifdef OPENGL
-		if(s_useOpenGL && g_luaDisplayList) glEndList();
+		if(s_useOpenGL && g_luaDisplayList) {
+			if(!frame_is_skipped) {
+				glEndList();
+			}
+		}
 #endif
 
 	// Past here, the nes actually runs, so any Lua code is called mid-frame. We must
@@ -5905,6 +5929,7 @@ int FCEU_LoadLuaCode(const char *filename, const char *arg) {
 		g_config->getOption("SDL.OpenGL", &s_useOpenGL);
 		if(s_useOpenGL) {
 			g_luaDisplayList = glGenLists(1);
+			g_config->getOption("SDL.Frameskip", &frameskip);
 		}
 #endif
 	}
