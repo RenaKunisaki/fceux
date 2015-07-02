@@ -21,9 +21,14 @@
 #define APIENTRY
 #endif
 
+#ifdef _S9XLUA_H
+	extern GLuint g_luaDisplayList;
+#endif
+
 static GLuint textures[2]={0,0};	// Normal image, scanline overlay.
 
 static int left,right,top,bottom; // right and bottom are not inclusive.
+static double xscale, yscale;
 static int scanlines;
 static void *HiBuffer;
 
@@ -47,6 +52,7 @@ SetOpenGLPalette(uint8 *data)
 void
 BlitOpenGL(uint8 *buf)
 {
+	glEnable(GL_TEXTURE_2D);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glBindTexture(GL_TEXTURE_2D, textures[0]);
 
@@ -104,6 +110,21 @@ BlitOpenGL(uint8 *buf)
 		glEnd();
 		glDisable(GL_BLEND);
 	}
+
+#ifdef _S9XLUA_H
+	if(g_luaDisplayList) {
+		glDisable(GL_TEXTURE_2D);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glPushMatrix();
+		glOrtho(left, right, bottom, top, 0.0, 1.0);
+		glLineWidth(xscale);
+		glCallList(g_luaDisplayList);
+		glPopMatrix();
+		glDisable(GL_BLEND);
+	}
+#endif
+
 	SDL_GL_SwapBuffers();
 }
 
@@ -126,8 +147,8 @@ InitOpenGL(int l,
 		int r,
 		int t,
 		int b,
-		double xscale,
-		double yscale,
+		double xs,
+		double ys,
 		int efx,
 		int ipolate,
 		int stretchx,
@@ -164,6 +185,8 @@ InitOpenGL(int l,
 	right=r;
 	top=t;
 	bottom=b;
+	xscale=xs;
+	yscale=ys;
 
 	HiBuffer=0;
 

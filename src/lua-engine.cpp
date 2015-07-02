@@ -26,6 +26,7 @@
 #include "utils/xstring.h"
 #include "utils/memory.h"
 #include "fceulua.h"
+#include "drivers/common/configSys.h"
 
 #ifdef WIN32
 #include "drivers/win/common.h"
@@ -53,6 +54,22 @@ extern TASEDITOR_LUA taseditor_lua;
 #include <bitset>
 
 #include "x6502abbrev.h"
+
+extern Config *g_config;
+
+#ifdef OPENGL
+	#ifdef APPLEOPENGL
+		#include <OpenGL/gl.h>
+		#include <OpenGL/glu.h>
+		#include <OpenGL/glext.h>
+	#else
+		#include <GL/gl.h>
+		#include <GL/glu.h>
+		#include <GL/glext.h>
+	#endif
+	static int s_useOpenGL = 0;
+	GLuint g_luaDisplayList = 0;
+#endif
 
 bool CheckLua()
 {
@@ -2977,6 +2994,17 @@ static void gui_prepare() {
 #define LUA_PIXEL_G(PIX) (((PIX) >> 8) & 0xff)
 #define LUA_PIXEL_B(PIX) ((PIX) & 0xff)
 
+#ifdef OPENGL
+	static void set_gl_color(uint32 colour) {
+		GLubyte a, r, g, b;
+		LUA_DECOMPOSE_PIXEL(colour, a, r, g, b);
+		//printf("%08X -> %02X %02X %02X %02X\n", colour, r, g, b, a);
+		//HACK XXX for some reason pure white does not render at all
+		if(r == 255 && g == 255 && b == 255) b = 254;
+		glColor4ub(r, g, b, a);
+	}
+#endif
+
 template <class T> static void swap(T &one, T &two) {
 	T temp = one;
 	one = two;
@@ -3033,6 +3061,19 @@ static void gui_drawline_internal(int x1, int y1, int x2, int y2, bool lastPixel
 
 	// Note: New version of Bresenham's Line Algorithm
 	// http://groups.google.co.jp/group/rec.games.roguelike.development/browse_thread/thread/345f4c42c3b25858/29e07a3af3a450e6?show_docid=29e07a3af3a450e6
+
+#ifdef OPENGL
+	if(s_useOpenGL) {
+		glPushAttrib(GL_CURRENT_BIT);
+		set_gl_color(colour);
+		glBegin(GL_LINES);
+		glVertex2i(x1, y1);
+		glVertex2i(x2, y2);
+		glEnd();
+		glPopAttrib();
+		return;
+	}
+#endif
 
 	int swappedx = 0;
 	int swappedy = 0;
@@ -3100,6 +3141,29 @@ static void gui_drawline_internal(int x1, int y1, int x2, int y2, bool lastPixel
 		}
 	}
 }
+
+
+#ifdef OPENGL
+	static void gui_drawbox_gl(int x1, int y1, int x2, int y2, uint32 colour) {
+		if (x1 > x2) std::swap(x1, x2);
+		if (y1 > y2) std::swap(y1, y2);
+		if (x1 <  0) x1 = 0;
+		if (y1 <  0) y1 = 0;
+		if (x2 >= LUA_SCREEN_WIDTH)  x2 = LUA_SCREEN_WIDTH  - 1;
+		if (y2 >= LUA_SCREEN_HEIGHT) y2 = LUA_SCREEN_HEIGHT - 1;
+
+		glPushAttrib(GL_CURRENT_BIT);
+		set_gl_color(colour);
+		glBegin(GL_QUADS);
+		glVertex2i(x1, y1);
+		glVertex2i(x1, y2);
+		glVertex2i(x2, y2);
+		glVertex2i(x2, y1);
+		glEnd();
+		glPopAttrib();
+	}
+#endif
+
 
 // draw a rect on gui_data
 static void gui_drawbox_internal(int x1, int y1, int x2, int y2, uint32 colour) {
@@ -3514,6 +3578,22 @@ static int gui_box(lua_State *L) {
 		std::swap(y1, y2);
 
 	gui_prepare();
+
+#ifdef OPENGL
+	if(s_useOpenGL) {
+		//fill
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(1.0, 0.1);
+		gui_drawbox_gl(x1, y1, x2, y2, fillcolor);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+
+		//outline
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		gui_drawbox_gl(x1, y1, x2, y2, outlinecolor);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		return 0;
+	}
+#endif
 
 	gui_drawbox_internal(x1, y1, x2, y2, outlinecolor);
 	if ((x2 - x1) >= 2 && (y2 - y1) >= 2)
@@ -5623,6 +5703,11 @@ void FCEU_LuaFrameBoundary()
 	frameBoundary = TRUE;
 	frameAdvanceWaiting = FALSE;
 
+#ifdef OPENGL
+		if(s_useOpenGL && g_luaDisplayList)
+			glNewList(g_luaDisplayList, GL_COMPILE);
+#endif
+
 	numTries = 1000;
 	int result = lua_resume(thread, NULL, 0);
 
@@ -5649,6 +5734,10 @@ void FCEU_LuaFrameBoundary()
 		// then this message is overrided by "emu speed" within the same frame, which hides this bug
 		// uncomment onse solution is found
 	}
+
+#ifdef OPENGL
+		if(s_useOpenGL && g_luaDisplayList) glEndList();
+#endif
 
 	// Past here, the nes actually runs, so any Lua code is called mid-frame. We must
 	// not do anything too stupid, so let ourselves know.
@@ -5759,6 +5848,13 @@ int FCEU_LoadLuaCode(const char *filename, const char *arg) {
 			lua_newtable(L);
 			lua_setfield(L, LUA_REGISTRYINDEX, luaMemHookTypeStrings[i]);
 		}
+
+#ifdef OPENGL
+		g_config->getOption("SDL.OpenGL", &s_useOpenGL);
+		if(s_useOpenGL) {
+			g_luaDisplayList = glGenLists(1);
+		}
+#endif
 	}
 
 	// We make our thread NOW because we want it at the bottom of the stack.
