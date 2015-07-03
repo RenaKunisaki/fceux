@@ -422,9 +422,9 @@ InitVideo(FCEUGI *gi)
 		if(noGui == 0)
 		{
 			//resize the window to prevent leaving empty space
-			GtkRequisition req;
-			gtk_widget_size_request(GTK_WIDGET(MainWindow), &req);
-			gtk_window_resize(GTK_WINDOW(MainWindow), req.width, req.height);
+			//GtkRequisition req;
+			//gtk_widget_size_request(GTK_WIDGET(MainWindow), &req);
+			//gtk_window_resize(GTK_WINDOW(MainWindow), req.width, req.height);
 		 }
 #endif
 		 }
