@@ -487,16 +487,22 @@ InitVideo(FCEUGI *gi)
 						s_screen->format->Bmask,
 						s_eefx, s_sponge, 0);
 #ifdef OPENGL
-		if(s_useOpenGL)
-		{
+		if(s_useOpenGL) {
 			int openGLip;
 			g_config->getOption("SDL.OpenGLip", &openGLip);
 
-			if(!InitOpenGL(NOFFSET, 256 - (s_clipSides ? 8 : 0),
-						s_srendline, s_erendline + 1,
-						s_exs, s_eys, s_eefx,
-						openGLip, xstretch, ystretch, s_screen))
-			{
+			if(!InitOpenGL(
+				/* l */        NOFFSET,
+				/* r */        256 - (s_clipSides ? 8 : 0),
+				/* t */        s_srendline,
+				/* b */        s_erendline + 1,
+				/* xs */       s_exs,
+				/* ys */       s_eys,
+				/* efx */      s_eefx,
+				/* ipolate */  openGLip,
+				/* stretchx */ xstretch,
+				/* stretchy */ ystretch,
+				/* screen */   s_screen)) {
 				FCEUD_PrintError("Error initializing OpenGL.");
 				KillVideo();
 				return -1;
