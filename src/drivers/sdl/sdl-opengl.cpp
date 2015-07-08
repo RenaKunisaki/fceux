@@ -24,6 +24,8 @@
 #define LFG(x) if(!(##x = (x##_Func) SDL_GL_GetProcAddress(#x))) return(0);
 #define LFGN(x) p_##x = (x##_Func) SDL_GL_GetProcAddress(#x)
 
+extern Config *g_config;
+
 #ifdef _S9XLUA_H
 	extern GLuint g_luaDisplayList;
 #endif
@@ -31,15 +33,16 @@
 static struct {
 	//visible area of the game screen.
 	//right and bottom are not inclusive.
-	int left;
-	int right;
-	int top;
-	int bottom;
+	double left;
+	double right;
+	double top;
+	double bottom;
 
 	//scale setting.
 	struct {
 		double x;
 		double y;
+		int isAuto;
 	} scale;
 
 	//stretch setting.
@@ -71,7 +74,7 @@ static struct {
 
 	//actual screen buffer.
 	SDL_Surface *buf;
-	void *HiBuffer;
+	void *HiBuffer; //used for 8-bit-to-RGB colour conversion
 } screen;
 
 
@@ -106,7 +109,7 @@ void BlitOpenGL(uint8 *buf) {
 	else {
 		//glPixelStorei(GL_UNPACK_ROW_LENGTH, 256);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_COLOR_INDEX8_EXT, 256, 256, 0,
-					GL_COLOR_INDEX,GL_UNSIGNED_BYTE,buf);
+					GL_COLOR_INDEX, GL_UNSIGNED_BYTE, buf);
 	}
 
 	glCallList(screen.list.game);
@@ -131,54 +134,41 @@ static void regenerateDisplayList() {
 	if(!screen.list.game) screen.list.game = glGenLists(1);
 	glNewList(screen.list.game, GL_COMPILE);
 
+	float s_left   = screen.left   / 256.0; //corners of screen
+	float s_right  = screen.right  / 256.0;
+	float s_bottom = screen.bottom / 256.0;
+	float s_top    = screen.top    / 256.0;
+	float t_left   = -1.0; //corners of target
+	float t_right  =  1.0;
+	float t_bottom = -1.0;
+	float t_top    =  1.0;
+
+	//array of (x,y) vertices for source and destination
+	float s_vx[4] = {s_left,   s_right,  s_right, s_left};
+	float s_vy[4] = {s_bottom, s_bottom, s_top,   s_top };
+	float t_vx[4] = {t_left,   t_right,  t_right, t_left};
+	float t_vy[4] = {t_bottom, t_bottom, t_top,   t_top };
+	int i;
+
+	glDisable(GL_BLEND);
 	glBegin(GL_QUADS);
-	glTexCoord2f(
-		1.0f*screen.left/256,
-		1.0f*screen.bottom/256); // Bottom left of picture.
-	glVertex2f(-1.0f, -1.0f);	// Bottom left of target.
-
-	glTexCoord2f(
-		1.0f*screen.right/256,
-		1.0f*screen.bottom/256);// Bottom right of picture.
-	glVertex2f( 1.0f, -1.0f);	// Bottom right of target.
-
-	glTexCoord2f(
-		1.0f*screen.right/256,
-		1.0f*screen.top/256); // Top right of our picture.
-	glVertex2f( 1.0f,  1.0f);	// Top right of target.
-
-	glTexCoord2f(
-		1.0f*screen.left/256,
-		1.0f*screen.top/256);  // Top left of our picture.
-	glVertex2f(-1.0f,  1.0f);	// Top left of target.
+	for(i=0; i<4; i++) {
+		glTexCoord2f(s_vx[i], s_vy[i]);
+		glVertex2f  (t_vx[i], t_vy[i]);
+	}
 	glEnd();
 
-	//glDisable(GL_BLEND);
 	if(screen.scanlines) {
 		glEnable(GL_BLEND);
 		glBindTexture(GL_TEXTURE_2D, screen.texture.scanlines);
 		glBlendFunc(GL_DST_COLOR, GL_SRC_ALPHA);
 
 		glBegin(GL_QUADS);
-
-		glTexCoord2f(1.0f*screen.left/256,
-					1.0f*screen.bottom/256); // Bottom left of our picture.
-		glVertex2f(-1.0f, -1.0f);      // Bottom left of target.
-
-		glTexCoord2f(1.0f*screen.right/256,
-					1.0f*screen.bottom/256); // Bottom right of our picture.
-		glVertex2f( 1.0f, -1.0f);      // Bottom right of target.
-
-		glTexCoord2f(1.0f*screen.right/256,
-					1.0f*screen.top/256);    // Top right of our picture.
-		glVertex2f( 1.0f,  1.0f);      // Top right of target.
-
-		glTexCoord2f(1.0f*screen.left/256,
-					1.0f*screen.top/256);     // Top left of our picture.
-		glVertex2f(-1.0f,  1.0f);      // Top left of target.
-
+		for(i=0; i<4; i++) {
+			glTexCoord2f(s_vx[i], s_vy[i]);
+			glVertex2f  (t_vx[i], t_vy[i]);
+		}
 		glEnd();
-		glDisable(GL_BLEND);
 	}
 
 #ifdef _S9XLUA_H
@@ -190,7 +180,6 @@ static void regenerateDisplayList() {
 	glLineWidth(screen.scale.x);
 	glCallList(g_luaDisplayList);
 	glPopMatrix();
-	glDisable(GL_BLEND);
 #endif
 
 	glEndList();
@@ -202,7 +191,7 @@ static void createScanlineTexture(int filter) {
 	int x, y;
 
 	screen.scanlines = 1;
-	glBindTexture(GL_TEXTURE_2D, screen.texture.scanlines);
+	glBindTexture  (GL_TEXTURE_2D, screen.texture.scanlines);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
 
@@ -224,7 +213,7 @@ static void createScanlineTexture(int filter) {
 
 
 static void createGameVideoTexture(int filter) {
-	glBindTexture(GL_TEXTURE_2D, screen.texture.game);
+	glBindTexture  (GL_TEXTURE_2D, screen.texture.game);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
@@ -233,7 +222,8 @@ static void createGameVideoTexture(int filter) {
 
 
 static void initPalettedTextureExtension(int efx) {
-	if(!(efx&2)) { // Don't want to print out a warning message in this case...
+	//Don't print warning message if palette extension is disabled by user
+	if(!(efx&2)) {
 		FCEU_printf("Paletted texture extension not found.  "
 			"Using slower texture format...\n");
 	}
@@ -289,6 +279,7 @@ int InitOpenGL(int left, int right, int top, int bottom,
 	screen.HiBuffer  = 0;
 	screen.scanlines = 0;
 	screen.list.game = 0;
+	g_config->getOption("SDL.AutoScale", &screen.scale.isAuto);
 	//printf("Init OpenGL: rect=(l=%d r=%d t=%d b=%d) scale=(%1.1f, %1.1f) "
 	//	"stretch=(%d, %d) ipolate=%d efx=0x%04X\n",
 	//	left, top, right, bottom, xs, ys, stretchx, stretchy, ipolate, efx);
@@ -301,23 +292,25 @@ int InitOpenGL(int left, int right, int top, int bottom,
 	screen.window.height = viewport[3] - viewport[1];
 
 
+	//use paletted textures if available
 	initExtensions();
 	const char *extensions = (const char*)glGetString(GL_EXTENSIONS);
-
-
-	//use paletted textures if available
 	if((efx&2) || !extensions || !p_glColorTableEXT
 	|| !strstr(extensions,"GL_EXT_paletted_texture")) {
 		initPalettedTextureExtension(efx);
 	}
 
+
 	/* if(screenBuf->flags & SDL_FULLSCREEN) {
 		//XXX still necessary? what is this even doing?
+		//seems to be just scaling up to fit the screen and preserving the
+		//aspect ratio, which we already do below.
 		screen.scale.x = (double)screenBuf->w / (double)(right  - left);
 		screen.scale.y = (double)screenBuf->h / (double)(bottom - top);
 		if(screen.scale.x < screen.scale.y) screen.scale.y = screen.scale.x;
 		if(screen.scale.y < screen.scale.x) screen.scale.x = screen.scale.y;
 	} */
+
 
 	//generate the textures for video output and scanlines
 	int filter = ipolate ? GL_LINEAR : GL_NEAREST;
@@ -334,7 +327,9 @@ int InitOpenGL(int left, int right, int top, int bottom,
 
 
 	//set up our matrix and viewport;
-	//XXX honour manual scale settings (these need to suck less)
+	//XXX honour manual scale settings. need to figure out how to set up the
+	//ortho and coords for that so that it's still centred (or in a corner/edge
+	//if we wanted to add that option).
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
@@ -345,6 +340,7 @@ int InitOpenGL(int left, int right, int top, int bottom,
 	if(screen.stretch.x) ax = 1.0; //allow stretching horizontally?
 	if(screen.stretch.y) ay = 1.0; //allow stretching vertically?
 	glOrtho(-1*ax, 1*ax, -1*ay, 1*ay, 0.0, 1.0);
+
 	//(when stretching is disabled, game will scale but keep aspect ratio.)
 	//XXX do we need to factor in the actual NES ratio (256/240) here?
 	//it looks fine now but maybe I just can't tell.
