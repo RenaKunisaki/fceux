@@ -3569,41 +3569,56 @@ static int gui_box(lua_State *L) {
 	if(frame_is_skipped) return 0;
 
 	int x1,y1,x2,y2;
-	uint32 fillcolor;
+	uint32 fillcolor = LUA_BUILD_PIXEL(63, 255, 255, 255);
 	uint32 outlinecolor;
+	int do_fill = 1, do_outline = 1;
 
 	x1 = (int)luaL_checknumber(L,1);
 	y1 = (int)luaL_checknumber(L,2);
 	x2 = (int)luaL_checknumber(L,3);
 	y2 = (int)luaL_checknumber(L,4);
-	fillcolor = gui_optcolour(L,5,LUA_BUILD_PIXEL(63, 255, 255, 255));
-	outlinecolor = gui_optcolour(L,6,LUA_BUILD_PIXEL(255, LUA_PIXEL_R(fillcolor), LUA_PIXEL_G(fillcolor), LUA_PIXEL_B(fillcolor)));
 
-	if (x1 > x2)
-		std::swap(x1, x2);
-	if (y1 > y2)
-		std::swap(y1, y2);
+	//keep backward compatibility: none/nil will use default, false disables
+	if(!lua_isnoneornil(L, 5)) {
+		do_fill = lua_toboolean(L, 5);
+		if(do_fill) fillcolor = gui_optcolour(L, 5, fillcolor);
+	}
+
+	outlinecolor = LUA_BUILD_PIXEL(255,
+		LUA_PIXEL_R(fillcolor), LUA_PIXEL_G(fillcolor), LUA_PIXEL_B(fillcolor));
+	if(!lua_isnoneornil(L, 6)) {
+		do_outline = lua_toboolean(L, 6);
+		if(do_outline) outlinecolor = gui_optcolour(L, 6, outlinecolor);
+	}
+	if(!(do_fill || do_outline)) return 0;
 
 	gui_prepare();
 
 #ifdef OPENGL
 	if(s_useOpenGL) {
 		//fill
-		glEnable(GL_POLYGON_OFFSET_FILL);
-		glPolygonOffset(1.0, 0.1);
-		gui_drawbox_gl(x1, y1, x2, y2, fillcolor);
-		glDisable(GL_POLYGON_OFFSET_FILL);
+		if(do_fill) {
+			glEnable(GL_POLYGON_OFFSET_FILL);
+			glPolygonOffset(1.0, 0.1);
+			gui_drawbox_gl(x1, y1, x2, y2, fillcolor);
+			glDisable(GL_POLYGON_OFFSET_FILL);
+		}
 
 		//outline
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		gui_drawbox_gl(x1, y1, x2, y2, outlinecolor);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		if(do_outline) {
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			gui_drawbox_gl(x1, y1, x2, y2, outlinecolor);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
 		return 0;
 	}
 #endif
 
-	gui_drawbox_internal(x1, y1, x2, y2, outlinecolor);
-	if ((x2 - x1) >= 2 && (y2 - y1) >= 2)
+	if (x1 > x2) std::swap(x1, x2);
+	if (y1 > y2) std::swap(y1, y2);
+
+	if(do_outline) gui_drawbox_internal(x1, y1, x2, y2, outlinecolor);
+	if(do_fill && (x2 - x1) >= 2 && (y2 - y1) >= 2)
 		gui_fillbox_internal(x1+1, y1+1, x2-1, y2-1, fillcolor);
 
 	return 0;
